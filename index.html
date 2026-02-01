@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Estoque</title>
+
+<style>
+:root{
+  --roxo:#6c4cff;
+  --roxo-escuro:#4b35c9;
+  --cinza:#f3f4fa;
+  --preto:#121212;
+  --branco:#fff;
+}
+
+*{box-sizing:border-box;font-family:Inter,system-ui}
+
+body{
+  margin:0;
+  background:var(--cinza);
+  color:var(--preto);
+}
+
+header{
+  background:linear-gradient(135deg,var(--roxo),var(--roxo-escuro));
+  color:#fff;
+  padding:24px;
+  border-radius:0 0 28px 28px;
+}
+
+h1{margin:0;font-size:20px}
+h3{margin-top:0}
+
+.container{
+  max-width:480px;
+  margin:auto;
+  padding:16px;
+}
+
+.card{
+  background:#fff;
+  border-radius:22px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow:0 10px 25px rgba(0,0,0,.05);
+}
+
+input,select,button{
+  width:100%;
+  padding:12px;
+  border-radius:14px;
+  border:1px solid #ddd;
+  margin-top:8px;
+  font-size:14px;
+}
+
+button{
+  background:var(--roxo);
+  color:#fff;
+  border:none;
+  font-weight:600;
+}
+
+button.danger{
+  background:#ff4d4d;
+}
+
+.row{
+  display:flex;
+  gap:8px;
+}
+
+.row button{flex:1}
+
+.list{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 0;
+  border-bottom:1px solid #eee;
+}
+
+small{opacity:.6}
+.badge{
+  background:var(--roxo);
+  color:#fff;
+  padding:4px 10px;
+  border-radius:20px;
+  font-size:12px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>📦 Controle de Estoque</h1>
+  <small>Sistema simples, bonito e funcional</small>
+</header>
+
+<div class="container">
+
+<!-- ADICIONAR PRODUTO -->
+<div class="card">
+  <h3>Adicionar produto</h3>
+  <input id="nome" placeholder="Nome do produto">
+  <input id="categoria" placeholder="Categoria">
+  <input id="qtd" type="number" placeholder="Quantidade inicial">
+  <button onclick="addProduto()">Adicionar produto</button>
+</div>
+
+<!-- LISTA DE PRODUTOS -->
+<div class="card">
+  <h3>Produtos cadastrados</h3>
+  <div id="produtos"></div>
+</div>
+
+<!-- MOVIMENTAÇÃO -->
+<div class="card">
+  <h3>Lançar movimentação</h3>
+  <select id="produtoMov"></select>
+  <select id="tipoMov">
+    <option value="entrada">Entrada</option>
+    <option value="saida">Saída</option>
+  </select>
+  <input id="qtdMov" type="number" placeholder="Quantidade">
+  <button onclick="movimentar()">Registrar movimentação</button>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="card">
+  <h3>Histórico de movimentações</h3>
+  <input type="date" id="filtroData" onchange="render()">
+  <select id="filtroCat" onchange="render()">
+    <option value="">Todas as categorias</option>
+  </select>
+  <div id="historico"></div>
+</div>
+
+</div>
+
+<script>
+let produtos = JSON.parse(localStorage.getItem("produtos")) || [];
+let historico = JSON.parse(localStorage.getItem("historico")) || [];
+
+function salvar(){
+  localStorage.setItem("produtos",JSON.stringify(produtos));
+  localStorage.setItem("historico",JSON.stringify(historico));
+  render();
+}
+
+function addProduto(){
+  if(!nome.value || !categoria.value) return;
+
+  const produto = {
+    id:Date.now(),
+    nome:nome.value,
+    cat:categoria.value,
+    qtd:+qtd.value || 0,
+    criado:new Date().toLocaleString()
+  };
+
+  produtos.push(produto);
+
+  historico.push({
+    tipo:"criação",
+    produto:produto.nome,
+    cat:produto.cat,
+    qtd:produto.qtd,
+    data:produto.criado
+  });
+
+  nome.value=categoria.value=qtd.value="";
+  salvar();
+}
+
+function removerProduto(id){
+  const p = produtos.find(p=>p.id===id);
+
+  historico.push({
+    tipo:"remoção",
+    produto:p.nome,
+    cat:p.cat,
+    qtd:p.qtd,
+    data:new Date().toLocaleString()
+  });
+
+  produtos = produtos.filter(p=>p.id!==id);
+  salvar();
+}
+
+function movimentar(){
+  const p = produtos.find(p=>p.id==produtoMov.value);
+  let q = +qtdMov.value;
+  if(tipoMov.value==="saida") q*=-1;
+
+  p.qtd += q;
+
+  historico.push({
+    tipo:tipoMov.value,
+    produto:p.nome,
+    cat:p.cat,
+    qtd:q,
+    data:new Date().toLocaleString()
+  });
+
+  qtdMov.value="";
+  salvar();
+}
+
+function render(){
+  produtosDiv();
+  selects();
+  historicoDiv();
+}
+
+function produtosDiv(){
+  produtos.innerHTML="";
+  produtos.forEach(p=>{
+    produtos.innerHTML+=`
+    <div class="list">
+      <div>
+        <strong>${p.nome}</strong><br>
+        <small>${p.cat} • ${p.qtd} un</small>
+      </div>
+      <button class="danger" onclick="removerProduto(${p.id})">✕</button>
+    </div>`;
+  });
+}
+
+function selects(){
+  produtoMov.innerHTML="";
+  filtroCat.innerHTML='<option value="">Todas as categorias</option>';
+
+  [...new Set(produtos.map(p=>p.cat))].forEach(c=>{
+    filtroCat.innerHTML+=`<option>${c}</option>`;
+  });
+
+  produtos.forEach(p=>{
+    produtoMov.innerHTML+=`<option value="${p.id}">${p.nome}</option>`;
+  });
+}
+
+function historicoDiv(){
+  historico.innerHTML="";
+
+  historico
+    .slice()
+    .reverse()
+    .filter(h=>{
+      if(filtroCat.value && h.cat!==filtroCat.value) return false;
+      if(filtroData.value && !h.data.includes(filtroData.value.split("-").reverse().join("/"))) return false;
+      return true;
+    })
+    .forEach(h=>{
+      historico.innerHTML+=`
+      <div class="list">
+        <div>
+          <strong>${h.produto}</strong><br>
+          <small>${h.tipo} • ${h.cat} • ${h.data}</small>
+        </div>
+        <span class="badge">${h.qtd}</span>
+      </div>`;
+    });
+}
+
+render();
+</script>
+
+</body>
+</html>
